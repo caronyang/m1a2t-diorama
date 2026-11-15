@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <link rel="icon" href="data:," />
 <title>M1A2T ABRAMS · 微縮森林場景</title>
-<link rel="stylesheet" href="./style.css?v=3" />
+<link rel="stylesheet" href="./style.css?v=6" />
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -70,6 +70,19 @@
       <div class="ticks"><span>後退</span><span>邊界 −30 cm</span><span>前進</span></div>
     </div>
 
+    <div class="group fire-group">
+      <div class="fire-head"><span>主砲 / MAIN GUN</span><small>120 mm</small></div>
+      <div class="fire-key-wrap" id="fireWrap">
+        <div class="fire-cover"><span>SAFETY</span></div>
+        <button id="btnFire" class="fire-key" aria-label="Fire main gun" disabled>
+          <span class="fire-led" id="fireLed"></span>
+          <span class="fire-main">FIRE</span>
+          <span class="fire-sub">MAIN GUN</span>
+        </button>
+      </div>
+      <div class="fire-status"><span id="fireStatus">LOADING</span><span class="fire-code">F</span></div>
+    </div>
+
     <div class="group toggles">
       <button id="btnAuto" class="pill"><span class="led"></span>自動旋轉</button>
       <button id="btnMove" class="pill"><span class="led"></span>自動行進</button>
@@ -92,6 +105,64 @@
     </div>
   </aside>
 
+  <nav class="mobile-dock" id="mobileDock" aria-label="行動版控制列">
+    <button class="dock-btn" id="mLight" type="button" aria-label="切換光影場景">
+      <span class="dock-ico" id="mLightIcon">☀</span>
+      <span class="dock-lbl" id="mLightLabel">白天</span>
+    </button>
+    <button class="dock-btn" type="button" data-tray="turret" aria-label="砲塔旋轉">
+      <span class="dock-ico">↺</span><span class="dock-lbl">砲塔</span>
+    </button>
+    <button class="dock-btn" type="button" data-tray="gun" aria-label="砲管俯仰">
+      <span class="dock-ico">⌃</span><span class="dock-lbl">砲管</span>
+    </button>
+    <button class="dock-btn" type="button" data-tray="drive" aria-label="車身前進">
+      <span class="dock-ico">⇄</span><span class="dock-lbl">車身</span>
+    </button>
+    <button class="dock-btn" type="button" data-tray="view" aria-label="視角與自動">
+      <span class="dock-ico">▣</span><span class="dock-lbl">視角</span>
+    </button>
+    <button class="mobile-fire" id="mFire" type="button" aria-label="Fire main gun" disabled>
+      <span class="mobile-fire-led" id="mFireLed"></span>
+      <span class="mf-label" id="mFireLabel">FIRE</span>
+    </button>
+  </nav>
+
+  <div class="mobile-tray" id="mobileTray" aria-hidden="true">
+    <div class="mtray-head">
+      <span id="mTrayTitle">砲塔旋轉</span>
+      <button id="mTrayClose" type="button" aria-label="關閉">×</button>
+    </div>
+    <div class="mtray-body">
+      <div class="mtray-pane" data-pane="turret">
+        <div class="m-row"><span>砲塔旋轉 <small>Z 軸</small></span><output id="mOutTurret">0°</output></div>
+        <input id="mTurret" type="range" min="-120" max="120" step="1" value="0" aria-label="砲塔旋轉" />
+      </div>
+      <div class="mtray-pane" data-pane="gun">
+        <div class="m-row"><span>砲管俯仰 <small>X 軸</small></span><output id="mOutGun">0.0°</output></div>
+        <input id="mGun" type="range" min="-10" max="15" step="0.5" value="0" aria-label="砲管俯仰" />
+        <div class="ticks"><span>-10°</span><span>+15°</span></div>
+      </div>
+      <div class="mtray-pane" data-pane="drive">
+        <div class="m-row"><span>車身前進 <small>Y 軸</small></span><output id="mOutDrive">0.0 cm</output></div>
+        <input id="mDrive" type="range" min="-1" max="1" step="0.01" value="0" aria-label="車身前進" />
+        <div class="ticks"><span>後退</span><span>邊界 −30 cm</span><span>前進</span></div>
+        <button id="mMove" class="pill m-pill" type="button"><span class="led"></span>自動行進</button>
+      </div>
+      <div class="mtray-pane" data-pane="view">
+        <div class="presets m-presets">
+          <button data-view="hero" class="active" type="button">特寫</button>
+          <button data-view="side" type="button">側面</button>
+          <button data-view="diorama" type="button">全景</button>
+        </div>
+        <div class="toggles">
+          <button id="mAuto" class="pill" type="button"><span class="led"></span>自動旋轉</button>
+          <button id="mReset" class="pill" type="button">重設</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="hint">拖曳以旋轉場景 · 滾輪縮放 · 右鍵平移</div>
 
   <div id="loader">
@@ -111,6 +182,6 @@
     }
   }
   </script>
-  <script type="module" src="./main.js?v=11"></script>
+  <script type="module" src="./main.js?v=18"></script>
 </body>
 </html>

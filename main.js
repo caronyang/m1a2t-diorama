@@ -238,6 +238,14 @@ function setLighting(mode) {
   applyHeadlights(p.head);
   const out = document.getElementById('outLight');
   if (out) out.textContent = p.label;
+  const mLabel = document.getElementById('mLightLabel');
+  if (mLabel) {
+    mLabel.textContent = p.label;
+    const mIcon = document.getElementById('mLightIcon');
+    if (mIcon) mIcon.textContent = mode === 'day' ? '☀' : mode === 'dusk' ? '◐' : '☾';
+    const mBtn = document.getElementById('mLight');
+    if (mBtn) mBtn.classList.toggle('active', mode !== 'day');
+  }
   document.querySelectorAll('[data-light]').forEach(b => {
     b.classList.toggle('active', b.dataset.light === mode);
   });
@@ -265,6 +273,124 @@ function buildHeadlights(hullObj) {
     headlights.spots.push(spot);
   }
 }
+
+setLighting('day');
+
+// ---- main gun effects -----------------------------------------------------
+function makeFlashTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 256;
+  const g = cv.getContext('2d');
+  const gr = g.createRadialGradient(128, 128, 4, 128, 128, 126);
+  gr.addColorStop(0, 'rgba(255,255,255,1)');
+  gr.addColorStop(0.2, 'rgba(255,250,220,0.98)');
+  gr.addColorStop(0.48, 'rgba(255,196,88,0.72)');
+  gr.addColorStop(0.76, 'rgba(255,128,26,0.28)');
+  gr.addColorStop(1, 'rgba(255,80,8,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 256, 256);
+  g.globalCompositeOperation = 'lighter';
+  g.translate(128, 128);
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2 + (i % 2) * 0.12;
+    g.save();
+    g.rotate(a);
+    const lg = g.createLinearGradient(0, 0, 122, 0);
+    lg.addColorStop(0, 'rgba(255,255,245,1)');
+    lg.addColorStop(0.55, 'rgba(255,228,150,0.62)');
+    lg.addColorStop(1, 'rgba(255,150,30,0)');
+    g.fillStyle = lg;
+    g.beginPath();
+    g.moveTo(0, -7);
+    g.lineTo(122, 0);
+    g.lineTo(0, 7);
+    g.closePath();
+    g.fill();
+    g.restore();
+  }
+  g.rotate(Math.PI / 2);
+  const lg = g.createLinearGradient(-128, 0, 128, 0);
+  lg.addColorStop(0, 'rgba(255,220,150,0)');
+  lg.addColorStop(0.5, 'rgba(255,255,240,0.8)');
+  lg.addColorStop(1, 'rgba(255,220,150,0)');
+  g.fillStyle = lg;
+  g.fillRect(-128, -3, 256, 6);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+function makeSmokeTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const g = cv.getContext('2d');
+  for (let i = 0; i < 18; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const rr = Math.random() * 34;
+    const x = 64 + Math.cos(a) * rr;
+    const y = 64 + Math.sin(a) * rr * 0.8;
+    const rad = 16 + Math.random() * 28;
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, 'rgba(255,255,255,0.36)');
+    gr.addColorStop(0.55, 'rgba(255,255,255,0.16)');
+    gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 128, 128);
+  }
+  const mask = g.createRadialGradient(64, 64, 26, 64, 64, 63);
+  mask.addColorStop(0, 'rgba(255,255,255,1)');
+  mask.addColorStop(0.66, 'rgba(255,255,255,0.8)');
+  mask.addColorStop(1, 'rgba(255,255,255,0)');
+  g.globalCompositeOperation = 'destination-in';
+  g.fillStyle = mask;
+  g.fillRect(0, 0, 128, 128);
+  g.globalCompositeOperation = 'source-over';
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const flashTex = makeFlashTexture();
+const smokeTex = makeSmokeTexture();
+const cannonFlash = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: flashTex, color: 0xffd6a0, transparent: true, opacity: 0,
+  depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending,
+  toneMapped: false
+}));
+cannonFlash.visible = false;
+scene.add(cannonFlash);
+const cannonLight = new THREE.PointLight(0xffcf8a, 0, 4.5, 2);
+scene.add(cannonLight);
+
+const smokePool = [];
+for (let i = 0; i < 64; i++) {
+  const mat = new THREE.SpriteMaterial({
+    map: smokeTex, color: 0xc4bfb4, transparent: true, opacity: 0,
+    depthWrite: false
+  });
+  const sp = new THREE.Sprite(mat);
+  sp.visible = false;
+  sp.userData = { vel: new THREE.Vector3(), age: 0, life: 0, size: 0.1 };
+  scene.add(sp);
+  smokePool.push(sp);
+}
+
+const fireState = { flash: 0, smokeIndex: 0, shake: 0 };
+const _muzzlePos = new THREE.Vector3();
+const _muzzleQ = new THREE.Quaternion();
+const _muzzleFwd = new THREE.Vector3();
+const _muzzleUp = new THREE.Vector3();
+const _muzzleRight = new THREE.Vector3();
+const _recoilQ = new THREE.Quaternion();
+let muzzleMarker = null;
+let gunAxis = new THREE.Vector3(0, 0, -1);
+const muzzleLocal = new THREE.Vector3();
+let gunBasePos = null;
+let hullBaseQuat = null;
+const hullBasePos = new THREE.Vector3();
+let fireCooldown = 0;
+let fireArmed = false;
+const recoil = { x: 0, v: 0, pitch: 0, pv: 0, gun: 0, gv: 0 };
+const rootBasePos = new THREE.Vector3();
+const rootBaseRot = new THREE.Euler();
 
 setLighting('day');
 
@@ -318,6 +444,7 @@ class SoundFX {
     this.servoUntil = 0;
     this.servoKind = '';
     this.servoNodes = null;
+    this.duckUntil = 0;
   }
 
   makeNoise(seconds = 2) {
@@ -463,6 +590,7 @@ class SoundFX {
   update(dt) {
     if (!this.ctx) return;
     const now = performance.now();
+    const duck = now < this.duckUntil ? 0.35 : 1;
     const target = now < this.revUntil ? this.revTarget : 0;
     this.revLevel += (target - this.revLevel) * Math.min(1, dt * 8);
     if (this.engine) {
@@ -473,11 +601,11 @@ class SoundFX {
       }
       this.engine.lfo.frequency.setTargetAtTime(8.2 + 5.5 * this.revLevel, t, 0.1);
       this.engine.lp.frequency.setTargetAtTime(240 + 260 * this.revLevel, t, 0.1);
-      this.engine.mix.gain.setTargetAtTime(0.55 + 0.18 * this.revLevel, t, 0.1);
+      this.engine.mix.gain.setTargetAtTime((0.55 + 0.18 * this.revLevel) * duck, t, 0.06);
     }
     if (this.servoNodes) {
       const active = now < this.servoUntil;
-      this.servoNodes.g.gain.setTargetAtTime(active ? 0.11 : 0.0001,
+      this.servoNodes.g.gain.setTargetAtTime(active ? 0.11 * duck : 0.0001,
         this.ctx.currentTime, active ? 0.04 : 0.16);
     }
   }
@@ -502,6 +630,144 @@ class SoundFX {
     }
   }
 
+  cannon() {
+    if (!this.ctx) this.init();
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    const t = ctx.currentTime + 0.005;
+
+    // main shot bus: saturation -> low-shelf -> master
+    const out = ctx.createGain();
+    out.gain.value = 1.0;
+    const shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) {
+      const x = i / 512 - 1;
+      curve[i] = Math.tanh(x * 1.7) * 0.94;
+    }
+    shaper.curve = curve;
+    const post = ctx.createGain();
+    post.gain.value = 2.1;
+    const shelf = ctx.createBiquadFilter();
+    shelf.type = 'lowshelf';
+    shelf.frequency.value = 125;
+    shelf.gain.value = 8;
+    out.connect(shaper).connect(post).connect(shelf).connect(this.master);
+
+    // 1) main low-frequency boom: pitch drop + fast attack
+    const boom = ctx.createOscillator();
+    boom.type = 'sine';
+    boom.frequency.setValueAtTime(130, t);
+    boom.frequency.exponentialRampToValueAtTime(30, t + 0.6);
+    const boomGain = ctx.createGain();
+    boomGain.gain.setValueAtTime(0.0001, t);
+    boomGain.gain.exponentialRampToValueAtTime(1.1, t + 0.012);
+    boomGain.gain.exponentialRampToValueAtTime(0.0015, t + 0.88);
+    boom.connect(boomGain).connect(out);
+    boom.start(t);
+    boom.stop(t + 0.95);
+
+    // 2) sub thump under the boom
+    const sub = ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(62, t);
+    sub.frequency.exponentialRampToValueAtTime(23, t + 0.55);
+    const subGain = ctx.createGain();
+    subGain.gain.setValueAtTime(0.0001, t);
+    subGain.gain.exponentialRampToValueAtTime(1.05, t + 0.02);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 1.35);
+    sub.connect(subGain).connect(out);
+    sub.start(t);
+    sub.stop(t + 1.45);
+
+    // 3) mid-bass punch for the initial shock
+    const punch = ctx.createOscillator();
+    punch.type = 'triangle';
+    punch.frequency.setValueAtTime(190, t);
+    punch.frequency.exponentialRampToValueAtTime(58, t + 0.18);
+    const punchGain = ctx.createGain();
+    punchGain.gain.setValueAtTime(0.0001, t);
+    punchGain.gain.exponentialRampToValueAtTime(0.65, t + 0.008);
+    punchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.26);
+    punch.connect(punchGain).connect(out);
+    punch.start(t);
+    punch.stop(t + 0.3);
+
+    // 4) muzzle crack: bright noise burst through a falling low-pass
+    const crack = ctx.createBufferSource();
+    crack.buffer = this.noise;
+    const crackHp = ctx.createBiquadFilter();
+    crackHp.type = 'highpass';
+    crackHp.frequency.value = 300;
+    const crackLp = ctx.createBiquadFilter();
+    crackLp.type = 'lowpass';
+    crackLp.frequency.setValueAtTime(7200, t);
+    crackLp.frequency.exponentialRampToValueAtTime(520, t + 0.42);
+    const crackGain = ctx.createGain();
+    crackGain.gain.setValueAtTime(0.0001, t);
+    crackGain.gain.exponentialRampToValueAtTime(1.0, t + 0.004);
+    crackGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    crack.connect(crackHp).connect(crackLp).connect(crackGain).connect(out);
+    crack.start(t);
+    crack.stop(t + 0.48);
+
+    // 5) concussive body around the muzzle
+    const blast = ctx.createBufferSource();
+    blast.buffer = this.noise;
+    const blastLp = ctx.createBiquadFilter();
+    blastLp.type = 'lowpass';
+    blastLp.frequency.setValueAtTime(1400, t);
+    blastLp.frequency.exponentialRampToValueAtTime(200, t + 0.7);
+    const blastGain = ctx.createGain();
+    blastGain.gain.setValueAtTime(0.0001, t);
+    blastGain.gain.exponentialRampToValueAtTime(0.9, t + 0.01);
+    blastGain.gain.exponentialRampToValueAtTime(0.001, t + 0.75);
+    blast.connect(blastLp).connect(blastGain).connect(out);
+    blast.start(t);
+    blast.stop(t + 0.8);
+
+    // 6) long rumble tail rolling away from the muzzle
+    const tail = ctx.createBufferSource();
+    tail.buffer = this.noise;
+    tail.loop = true;
+    const tailLp = ctx.createBiquadFilter();
+    tailLp.type = 'lowpass';
+    tailLp.frequency.setValueAtTime(800, t);
+    tailLp.frequency.exponentialRampToValueAtTime(110, t + 2.2);
+    const tailGain = ctx.createGain();
+    tailGain.gain.setValueAtTime(0.0001, t);
+    tailGain.gain.exponentialRampToValueAtTime(0.52, t + 0.05);
+    tailGain.gain.exponentialRampToValueAtTime(0.001, t + 2.35);
+    tail.connect(tailLp).connect(tailGain).connect(out);
+    tail.start(t);
+    tail.stop(t + 2.45);
+
+    // 7) short forest slap-back
+    const echo = ctx.createDelay(0.5);
+    echo.delayTime.value = 0.13;
+    const echoLp = ctx.createBiquadFilter();
+    echoLp.type = 'lowpass';
+    echoLp.frequency.value = 900;
+    const echoFb = ctx.createGain();
+    echoFb.gain.value = 0.2;
+    const echoGain = ctx.createGain();
+    echoGain.gain.value = 0.18;
+    out.connect(echo);
+    echo.connect(echoLp);
+    echoLp.connect(echoFb).connect(echo);
+    echoLp.connect(echoGain).connect(shelf);
+
+    this.duckUntil = performance.now() + 480;
+    setTimeout(() => {
+      try {
+        out.disconnect();
+        echoGain.disconnect();
+        echo.disconnect();
+        echoFb.disconnect();
+      } catch (e) { /* already gone */ }
+    }, 2800);
+  }
+
   toggle() {
     if (!this.ctx) { this.init(); return true; }
     this.enabled = !this.enabled;
@@ -515,6 +781,7 @@ class SoundFX {
     const b = document.getElementById('btnSound');
     if (!b) return;
     b.classList.toggle('active', on);
+    b.classList.toggle('muted', !on);
     b.textContent = on ? '🔊 音效' : '🔇 音效';
   }
 }
@@ -591,7 +858,15 @@ gltfLoader.load('./scene.glb', (gltf) => {
   setLighting(lightMode);
 
   if (turret) turretBase = turret.quaternion.clone();
+  if (gun) gunBasePos = gun.position.clone();
   if (gun) gunBase = gun.quaternion.clone();
+  if (hull) {
+    hullBaseQuat = hull.quaternion.clone();
+    hullBasePos.copy(hull.position);
+  }
+  rootBasePos.copy(root.position);
+  rootBaseRot.copy(root.rotation);
+  if (gun) setupMuzzle();
 
   // wheels
   model.traverse((o) => {
@@ -621,6 +896,10 @@ gltfLoader.load('./scene.glb', (gltf) => {
   document.getElementById('loader').classList.add('hidden');
   document.getElementById('bar').style.width = '100%';
   document.getElementById('pct').textContent = '100%';
+  setTimeout(() => {
+    fireArmed = true;
+    setFireStatus('ready');
+  }, 850);
 }, (ev) => {
   if (ev.total) {
     const p = Math.min(99, Math.round(ev.loaded / ev.total * 100));
@@ -754,6 +1033,7 @@ let autoMove = false;
 let turretDeg = 0;
 let gunDeg = 0;
 let movePhase = 0;
+let currentView = 'hero';
 
 const qy = new THREE.Quaternion();
 const qx = new THREE.Quaternion();
@@ -795,6 +1075,7 @@ function applyTravel(v) {
 // ---- view presets ---------------------------------------------------------
 function setView(name, instant = false) {
   if (!hull) return;
+  currentView = name;
   const up = new THREE.Vector3(0, 1, 0);
   const target = tankWorld.clone().add(up.clone().multiplyScalar(0.55));
   let pos;
@@ -821,6 +1102,15 @@ function setView(name, instant = false) {
     pos.addScaledVector(tankForward, 0.9);
     target.addScaledVector(tankForward, 0.1);
   }
+  if (innerWidth <= 900 && name !== 'diorama') {
+    const aspect = innerWidth / innerHeight;
+    const fit = name === 'hero'
+      ? (aspect < 0.8 ? 2.0 : aspect < 1.1 ? 1.45 : 1.18)
+      : (aspect < 0.8 ? 2.05 : aspect < 1.1 ? 1.32 : 1.09);
+    // portrait screens need the aim point at the tank body, not above it
+    target.y = tankWorld.y + 0.3;
+    pos.sub(target).multiplyScalar(fit).add(target);
+  }
   controls.target.copy(target);
   if (instant) {
     camera.position.copy(pos);
@@ -845,48 +1135,93 @@ function animateCamera(pos, target) {
 const $ = (id) => document.getElementById(id);
 const turretEl = $('turret'), gunEl = $('gun'), driveEl = $('drive');
 const outTurret = $('outTurret'), outGun = $('outGun'), outDrive = $('outDrive');
+const mTurretEl = $('mTurret'), mGunEl = $('mGun'), mDriveEl = $('mDrive');
+const mOutTurret = $('mOutTurret'), mOutGun = $('mOutGun'), mOutDrive = $('mOutDrive');
+const mAuto = $('mAuto'), mMove = $('mMove'), mReset = $('mReset');
+const mLight = $('mLight');
+const mFireBtn = $('mFire'), mFireLabel = $('mFireLabel');
 
-turretEl.addEventListener('input', (e) => {
-  const v = parseFloat(e.target.value);
-  outTurret.textContent = v + '°';
+function setTurretValue(v, playSound = true) {
+  v = THREE.MathUtils.clamp(v, -120, 120);
   applyTurret(v);
-  sound.servo('turret');
-});
-gunEl.addEventListener('input', (e) => {
-  const v = parseFloat(e.target.value);
-  outGun.textContent = v.toFixed(1) + '°';
-  applyGun(v);
-  sound.servo('gun');
-});
-driveEl.addEventListener('input', (e) => {
-  const v = parseFloat(e.target.value);
-  outDrive.textContent = (v * DRIVE_RANGE * 100).toFixed(1) + ' cm';
-  applyTravel(v * DRIVE_RANGE);
-});
+  turretEl.value = v;
+  mTurretEl.value = v;
+  outTurret.textContent = v + '°';
+  mOutTurret.textContent = v + '°';
+  if (playSound) sound.servo('turret');
+}
 
-$('btnAuto').addEventListener('click', (e) => {
+function setGunValue(v, playSound = true) {
+  applyGun(v);
+  const d = gunDeg;
+  gunEl.value = d;
+  mGunEl.value = d;
+  outGun.textContent = d.toFixed(1) + '°';
+  mOutGun.textContent = d.toFixed(1) + '°';
+  if (playSound) sound.servo('gun');
+}
+
+function setDriveValue(v) {
+  v = THREE.MathUtils.clamp(v, -1, 1);
+  applyTravel(v * DRIVE_RANGE);
+  driveEl.value = v;
+  mDriveEl.value = v;
+  const cm = (v * DRIVE_RANGE * 100).toFixed(1) + ' cm';
+  outDrive.textContent = cm;
+  mOutDrive.textContent = cm;
+}
+
+function syncAutoButtons() {
+  const on = controls.autoRotate;
+  $('btnAuto').classList.toggle('active', on);
+  if (mAuto) mAuto.classList.toggle('active', on);
+}
+function syncMoveButtons() {
+  $('btnMove').classList.toggle('active', autoMove);
+  if (mMove) mMove.classList.toggle('active', autoMove);
+}
+function toggleAutoRotate() {
   controls.autoRotate = !controls.autoRotate;
-  e.currentTarget.classList.toggle('active', controls.autoRotate);
-});
+  syncAutoButtons();
+}
+function toggleAutoMove() {
+  autoMove = !autoMove;
+  movePhase = Math.asin(THREE.MathUtils.clamp(travel / DRIVE_RANGE, -1, 1));
+  syncMoveButtons();
+}
+function resetControllers() {
+  setTurretValue(0, false);
+  setGunValue(0, false);
+  setDriveValue(0);
+  autoMove = false;
+  controls.autoRotate = false;
+  syncMoveButtons();
+  syncAutoButtons();
+  setView('hero');
+  closeTray();
+}
+
+turretEl.addEventListener('input', (e) => setTurretValue(parseFloat(e.target.value)));
+mTurretEl.addEventListener('input', (e) => setTurretValue(parseFloat(e.target.value)));
+gunEl.addEventListener('input', (e) => setGunValue(parseFloat(e.target.value)));
+mGunEl.addEventListener('input', (e) => setGunValue(parseFloat(e.target.value)));
+driveEl.addEventListener('input', (e) => setDriveValue(parseFloat(e.target.value)));
+mDriveEl.addEventListener('input', (e) => setDriveValue(parseFloat(e.target.value)));
+
+$('btnAuto').addEventListener('click', toggleAutoRotate);
+if (mAuto) mAuto.addEventListener('click', toggleAutoRotate);
+$('btnMove').addEventListener('click', toggleAutoMove);
+if (mMove) mMove.addEventListener('click', toggleAutoMove);
+$('btnReset').addEventListener('click', resetControllers);
+if (mReset) mReset.addEventListener('click', resetControllers);
+
 $('btnSound').addEventListener('click', () => {
   if (!sound.ctx) sound.init();
   else sound.toggle();
 });
-$('btnMove').addEventListener('click', (e) => {
-  autoMove = !autoMove;
-  movePhase = Math.asin(THREE.MathUtils.clamp(travel / DRIVE_RANGE, -1, 1));
-  e.currentTarget.classList.toggle('active', autoMove);
-});
-$('btnReset').addEventListener('click', () => {
-  turretEl.value = 0; gunEl.value = 0; driveEl.value = 0;
-  outTurret.textContent = '0°'; outGun.textContent = '0.0°'; outDrive.textContent = '0.0 cm';
-  applyTurret(0); applyGun(0); applyTravel(0);
-  autoMove = false;
-  $('btnMove').classList.remove('active');
-  setView('hero');
-});
 $('btnCollapse').addEventListener('click', () => {
   $('panel').classList.toggle('collapsed');
+  resize();
 });
 $('btnFull').addEventListener('click', () => {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen();
@@ -906,13 +1241,308 @@ document.querySelectorAll('[data-light]').forEach(b => {
   b.addEventListener('click', () => setLighting(b.dataset.light));
 });
 
+const LIGHT_ORDER = ['day', 'dusk', 'night'];
+if (mLight) {
+  mLight.addEventListener('click', () => {
+    const i = LIGHT_ORDER.indexOf(lightMode);
+    setLighting(LIGHT_ORDER[(i + 1) % LIGHT_ORDER.length]);
+  });
+}
+
+// ---- mobile dock / tray ---------------------------------------------------
+const mobileTray = $('mobileTray');
+const mTrayTitle = $('mTrayTitle');
+const trayTitles = { turret: '砲塔旋轉', gun: '砲管俯仰', drive: '車身前進', view: '視角與自動' };
+const trayButtons = Array.from(document.querySelectorAll('.dock-btn[data-tray]'));
+
+function openTray(name) {
+  if (!mobileTray || !trayTitles[name]) return;
+  mTrayTitle.textContent = trayTitles[name];
+  mobileTray.querySelectorAll('.mtray-pane').forEach(p => {
+    p.classList.toggle('active', p.dataset.pane === name);
+  });
+  mobileTray.classList.add('open');
+  mobileTray.setAttribute('aria-hidden', 'false');
+  trayButtons.forEach(b => b.classList.toggle('active', b.dataset.tray === name));
+}
+
+function closeTray() {
+  if (!mobileTray) return;
+  mobileTray.classList.remove('open');
+  mobileTray.setAttribute('aria-hidden', 'true');
+  trayButtons.forEach(b => b.classList.remove('active'));
+}
+
+trayButtons.forEach(b => {
+  b.addEventListener('click', () => {
+    if (mobileTray && mobileTray.classList.contains('open') && b.classList.contains('active')) {
+      closeTray();
+    } else {
+      openTray(b.dataset.tray);
+    }
+  });
+});
+if (mobileTray) {
+  $('mTrayClose').addEventListener('click', closeTray);
+  mobileTray.querySelectorAll('[data-view]').forEach(b => {
+    b.addEventListener('click', () => setTimeout(closeTray, 150));
+  });
+  canvas.addEventListener('pointerdown', closeTray);
+}
+
+// ---- main gun firing ------------------------------------------------------
+const fireBtn = $('btnFire');
+const fireWrap = $('fireWrap');
+const fireStatus = $('fireStatus');
+
+function setFireStatus(state) {
+  if (fireStatus) {
+    if (state === 'ready') {
+      fireStatus.textContent = 'READY';
+      fireWrap.classList.remove('firing', 'reloading');
+    } else if (state === 'firing') {
+      fireStatus.textContent = 'FIRING';
+      fireWrap.classList.add('firing');
+      fireWrap.classList.remove('reloading');
+    } else {
+      fireStatus.textContent = 'RELOAD';
+      fireWrap.classList.remove('firing');
+      fireWrap.classList.add('reloading');
+    }
+  }
+  if (fireBtn) fireBtn.disabled = state !== 'ready';
+  if (mFireBtn) {
+    mFireBtn.disabled = state !== 'ready';
+    mFireBtn.classList.toggle('firing', state === 'firing');
+    mFireBtn.classList.toggle('reloading', state === 'reloading');
+    if (mFireLabel) mFireLabel.textContent = state === 'reloading' ? 'WAIT' : 'FIRE';
+  }
+}
+
+function setupMuzzle() {
+  // Find the barrel axis and muzzle tip from the gun group's own geometry so
+  // the effect stays correct if the model is rebuilt at a different scale.
+  gun.updateWorldMatrix(true, true);
+  const worldBox = new THREE.Box3().setFromObject(gun);
+  const inv = new THREE.Matrix4().copy(gun.matrixWorld).invert();
+  const localBox = new THREE.Box3();
+  const c = new THREE.Vector3();
+  for (let i = 0; i < 8; i++) {
+    c.set(
+      (i & 1) ? worldBox.max.x : worldBox.min.x,
+      (i & 2) ? worldBox.max.y : worldBox.min.y,
+      (i & 4) ? worldBox.max.z : worldBox.min.z
+    );
+    localBox.expandByPoint(c.applyMatrix4(inv));
+  }
+  const size = localBox.getSize(new THREE.Vector3());
+  const center = localBox.getCenter(new THREE.Vector3());
+  let axis = 'x';
+  if (size.y >= size.x && size.y >= size.z) axis = 'y';
+  else if (size.z >= size.x && size.z >= size.y) axis = 'z';
+
+  const far = center.clone();
+  far[axis] = Math.abs(localBox.max[axis]) > Math.abs(localBox.min[axis])
+    ? localBox.max[axis] : localBox.min[axis];
+
+  gunAxis = new THREE.Vector3();
+  gunAxis[axis] = Math.sign(far[axis]) || 1;
+  muzzleLocal.copy(far);
+
+  muzzleMarker = new THREE.Object3D();
+  muzzleMarker.position.copy(muzzleLocal);
+  gun.add(muzzleMarker);
+}
+
+function spawnSmoke(count, fwd, up, right) {
+  for (let i = 0; i < count; i++) {
+    const sp = smokePool[fireState.smokeIndex];
+    fireState.smokeIndex = (fireState.smokeIndex + 1) % smokePool.length;
+    const u = sp.userData;
+    u.age = -Math.random() * 0.25;
+    u.life = 2.2 + Math.random() * 1.2;
+    u.size = 0.06 + Math.random() * 0.05;
+    u.alpha = 0.42 + Math.random() * 0.2;
+    u.spin = (Math.random() - 0.5) * 0.9;
+    sp.position.copy(_muzzlePos)
+      .addScaledVector(fwd, 0.01 + Math.random() * 0.08)
+      .addScaledVector(right, (Math.random() - 0.5) * 0.06)
+      .addScaledVector(up, (Math.random() - 0.5) * 0.05);
+    u.vel.copy(fwd).multiplyScalar(0.03 + Math.random() * 0.16)
+      .addScaledVector(up, 0.22 + Math.random() * 0.33)
+      .addScaledVector(right, (Math.random() - 0.5) * 0.18);
+    sp.material.opacity = 0;
+    sp.material.rotation = Math.random() * Math.PI * 2;
+    sp.visible = true;
+  }
+}
+
+function fireCannon() {
+  if (!fireArmed || !muzzleMarker || performance.now() < fireCooldown) return;
+  sound.init();
+  sound.cannon();
+
+  fireCooldown = performance.now() + 1150;
+  fireState.flash = 1;
+  fireState.shake = 1;
+  recoil.v += 0.14;      // hull pushed back along its local +Z
+  recoil.pv += 0.17;     // nose lifts
+  recoil.gv += 0.19;     // gun recoils in its cradle
+
+  muzzleMarker.getWorldPosition(_muzzlePos);
+  gun.getWorldQuaternion(_muzzleQ);
+  _muzzleFwd.copy(gunAxis).applyQuaternion(_muzzleQ).normalize();
+  _muzzleUp.set(0, 1, 0).applyQuaternion(_muzzleQ).normalize();
+  _muzzleRight.crossVectors(_muzzleFwd, _muzzleUp).normalize();
+  spawnSmoke(12, _muzzleFwd, _muzzleUp, _muzzleRight);
+
+  setFireStatus('firing');
+  closeTray();
+  setTimeout(() => {
+    if (performance.now() < fireCooldown) setFireStatus('reloading');
+  }, 300);
+}
+
+function updateSpring(o, key, vkey, k, c, dt) {
+  const a = -k * o[key] - c * o[vkey];
+  o[vkey] += a * dt;
+  o[key] += o[vkey] * dt;
+}
+
+function updateGunFx(dt, t) {
+  // recoil springs
+  updateSpring(recoil, 'x', 'v', 120, 9.2, dt);
+  updateSpring(recoil, 'pitch', 'pv', 95, 8.6, dt);
+  updateSpring(recoil, 'gun', 'gv', 320, 17, dt);
+  if (Math.abs(recoil.x) < 1e-5) recoil.x = 0;
+  if (Math.abs(recoil.pitch) < 1e-5) recoil.pitch = 0;
+  if (Math.abs(recoil.gun) < 1e-5) recoil.gun = 0;
+
+  if (gun && gunBasePos) {
+    gun.position.copy(gunBasePos).addScaledVector(gunAxis, -recoil.gun);
+  }
+  if (hull) {
+    hull.position.z = -travel + recoil.x;
+    hull.position.y = hullBasePos.y + Math.abs(recoil.pitch) * 0.12;
+    if (hullBaseQuat) {
+      hull.quaternion.copy(hullBaseQuat)
+        .multiply(qx.setFromAxisAngle(AX_X, recoil.pitch));
+    }
+  }
+  if (turret && turretBase) {
+    // tiny turret jolt, same spring family as the hull
+    turret.quaternion.copy(turretBase).multiply(
+      qy.setFromAxisAngle(AX_Y, THREE.MathUtils.degToRad(turretDeg)));
+    turret.quaternion.multiply(
+      qx.setFromAxisAngle(AX_X, recoil.pitch * 0.35));
+  }
+  // world (whole diorama) shake
+  if (fireState.shake > 0.001) {
+    fireState.shake *= Math.exp(-dt * 5.2);
+    const a = fireState.shake * 0.024;
+    root.position.set(
+      rootBasePos.x + Math.sin(t * 61.7) * a,
+      rootBasePos.y + Math.sin(t * 83.3 + 1.7) * a * 0.5,
+      rootBasePos.z + Math.sin(t * 71.1 + 0.4) * a
+    );
+    root.rotation.set(
+      rootBaseRot.x + Math.sin(t * 57.3 + 0.9) * a * 0.1,
+      rootBaseRot.y + Math.sin(t * 47.9 + 2.1) * a * 0.1,
+      rootBaseRot.z + Math.sin(t * 67.3 + 1.2) * a * 0.16
+    );
+  } else {
+    root.position.copy(rootBasePos);
+    root.rotation.copy(rootBaseRot);
+  }
+
+  // muzzle flash + light
+  if (fireState.flash > 0) {
+    fireState.flash = Math.max(0, fireState.flash - dt * 5.2);
+    const f = fireState.flash;
+    muzzleMarker.getWorldPosition(_muzzlePos);
+    gun.getWorldQuaternion(_muzzleQ);
+    _muzzleFwd.copy(gunAxis).applyQuaternion(_muzzleQ).normalize();
+    cannonFlash.position.copy(_muzzlePos)
+      .addScaledVector(_muzzleFwd, 0.02 + (1 - f) * 0.03);
+    const s = 0.5 + (1 - f) * 0.4;
+    cannonFlash.scale.setScalar(s);
+    cannonFlash.material.opacity = Math.min(1, f * 1.25);
+    cannonFlash.material.rotation = Math.random() * Math.PI * 2;
+    cannonFlash.visible = f > 0.002;
+    cannonLight.position.copy(cannonFlash.position);
+    cannonLight.intensity = f * f * 30;
+  } else {
+    cannonFlash.visible = false;
+    cannonLight.intensity = 0;
+  }
+
+  // smoke: rise, expand and dissolve
+  for (const sp of smokePool) {
+    if (!sp.visible) continue;
+    const u = sp.userData;
+    u.age += dt;
+    if (u.age < 0) {
+      sp.material.opacity = 0;
+      continue;
+    }
+    if (u.age >= u.life) {
+      sp.visible = false;
+      sp.material.opacity = 0;
+      continue;
+    }
+    const k = u.age / u.life;
+    sp.position.addScaledVector(u.vel, dt);
+    u.vel.multiplyScalar(Math.max(0, 1 - dt * 1.7));
+    u.vel.y += dt * 0.035;
+    const grow = u.size * (1 + k * 7.0);
+    sp.scale.set(grow, grow * 0.92, 1);
+    sp.material.rotation += dt * (u.spin || 0);
+    sp.material.opacity = u.alpha * Math.pow(1 - k, 1.35) *
+      Math.min(1, k * 10) * 0.9;
+  }
+
+  // cooldown / button state
+  if (fireCooldown && performance.now() >= fireCooldown) {
+    fireCooldown = 0;
+    setFireStatus('ready');
+  }
+}
+
+fireBtn.addEventListener('click', fireCannon);
+if (mFireBtn) mFireBtn.addEventListener('click', fireCannon);
+addEventListener('keydown', (e) => {
+  const isF = e.code === 'KeyF' || (e.key && e.key.toLowerCase() === 'f');
+  if (!isF || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  fireCannon();
+});
+
 // ---- loop -----------------------------------------------------------------
 const clock = new THREE.Clock();
 let camTweenT = 0;
+let lastPortrait = innerHeight > innerWidth;
+let lastCompact = innerWidth <= 900;
 function resize() {
   camera.aspect = innerWidth / innerHeight;
+  const panelEl = document.getElementById('panel');
+  let shift = 0;
+  if (innerWidth > 900 && panelEl && !panelEl.classList.contains('collapsed')) {
+    shift = Math.round(Math.min(250, panelEl.getBoundingClientRect().width * 0.84));
+  } else if (innerWidth <= 900) {
+    // give the muzzle some breathing room on narrow screens
+    shift = 22;
+  }
+  camera.setViewOffset(innerWidth, innerHeight, shift, 0, innerWidth, innerHeight);
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight, false);
+  const portrait = innerHeight > innerWidth;
+  const compact = innerWidth <= 900;
+  if (hull && (portrait !== lastPortrait || compact !== lastCompact)) {
+    setView(currentView, true);
+  }
+  lastPortrait = portrait;
+  lastCompact = compact;
 }
 addEventListener('resize', resize);
 resize();
@@ -924,10 +1554,7 @@ function animate() {
 
   if (autoMove) {
     movePhase += dt * 0.55;
-    const v = Math.sin(movePhase) * DRIVE_RANGE;
-    driveEl.value = (v / DRIVE_RANGE).toFixed(2);
-    outDrive.textContent = (v * 100).toFixed(1) + ' cm';
-    applyTravel(v);
+    setDriveValue(Math.sin(movePhase));
   }
 
   if (camTween) {
@@ -940,6 +1567,7 @@ function animate() {
   }
 
   sound.update(dt);
+  updateGunFx(dt, t);
 
   dust.rotation.y += dt * 0.012;
   const pos = dust.geometry.attributes.position;
@@ -956,7 +1584,8 @@ function animate() {
 animate();
 
 // initial UI state
-outDrive.textContent = '0.0 cm';
-$('btnAuto').classList.remove('active');
-applyTurret(0);
-applyGun(0);
+setTurretValue(0, false);
+setGunValue(0, false);
+setDriveValue(0);
+syncAutoButtons();
+syncMoveButtons();

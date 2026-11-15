@@ -6,8 +6,9 @@
 
 A procedural Blender 4.5 build of an **M1A2T Abrams** in a muddy pine-forest
 diorama, plus a real-time **three.js 360° viewer** with articulated turret/gun,
-animated running gear, three lighting moods, synthesized engine/servo audio and
-working headlights.
+animated running gear, three lighting moods, synthesized engine/servo/cannon
+audio, working headlights, and a main-gun firing sequence with muzzle flash,
+smoke, recoil and whole-diorama shake.
 
 ![Blender](https://img.shields.io/badge/Blender-4.5-orange)
 ![three.js](https://img.shields.io/badge/three.js-r160-black)
@@ -25,12 +26,20 @@ working headlights.
 - **Drive**: forward/reverse within **±12.8 cm** of the diorama scale; the center
   stops **30 cm from the world edge**. Road wheels rotate by radius and the
   tracks scroll along the stadium curve.
+- **Main gun**: click the red **FIRE / MAIN GUN** key or press **F**. The 120 mm
+  gun produces a muzzle flash, rising smoke, a synthesized cannon report, gun and
+  hull recoil, and a short shake of the whole miniature world. A 1.15 s reload
+  cycle gates the next shot; the key shows `READY / FIRING / RELOAD`.
 - **Day / Dusk / Night** lighting presets. Dusk and night switch on the two
   headlights, which project real SpotLight beams onto the ground.
-- **Sound**: synthesized diesel idle / revs and continuous servo motor sound.
-  Browsers require one click before audio can start (click the scene or the
-  `Sound` button). Use the same button to mute.
+- **Sound**: synthesized diesel idle / revs, continuous servo motor and the main
+  gun report. Browsers require one click before audio can start (click the scene
+  or the `Sound` button). Use the same button to mute.
 - **Photo** downloads a PNG of the current canvas; **fullscreen** is available.
+- **Mobile / narrow screens (≤900 px)**: the large panel is replaced by a compact
+  icon dock. `☀` cycles lighting, `↺` / `⌃` / `⇄` open small turret, gun and drive
+  trays, `▣` opens view presets plus auto-rotate/reset, and the red **FIRE** key
+  stays available. The camera pulls back automatically so the complete tank fits.
 
 > The viewer is a static site. The GitHub Pages copy lives at the repository
 > root (`index.html`, `main.js`, `vendor/`, `scene.glb`); `web/` is the source
@@ -147,7 +156,8 @@ images, then exports a Draco-compressed GLB. The original `.blend` is untouched.
   viewer; the Cycles still render uses the scene lighting.
 - Audio is generated at runtime with the Web Audio API. No audio files are
   included. Audio starts only after a user gesture because of browser autoplay
-  policies.
+  policies. The main-gun report combines a low shelf, sub-bass, transient crack,
+  saturation, a short forest echo and temporary engine/servo ducking.
 - `docs` is not used; GitHub Pages is configured from the `main` branch root
   (`.nojekyll` included), matching the reference setup of
   [`caronyang/winter-cabin`](https://github.com/caronyang/winter-cabin).
