@@ -1,0 +1,6 @@
+ref/
+*.blend1
+renders/preview.png
+__pycache__/
+**/__pycache__/
+.DS_Store

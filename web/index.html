@@ -1,0 +1,116 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="icon" href="data:," />
+<title>M1A2T ABRAMS · 微縮森林場景</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div id="vignette"></div>
+
+  <header class="hud top">
+    <div class="brand">
+      <div class="eyebrow">SCALE MODEL DIORAMA · 1:35</div>
+      <h1>M1A2T <span>ABRAMS</span></h1>
+      <div class="sub">微縮森林場景 · 360° 互動瀏覽</div>
+    </div>
+    <div class="top-actions">
+      <button id="btnSound" class="icon" title="音效">🔊 音效</button>
+      <button id="btnShot" class="icon" title="儲存畫面">◉ 拍照</button>
+      <button id="btnFull" class="icon" title="全螢幕">⛶</button>
+    </div>
+  </header>
+
+  <aside class="panel" id="panel">
+    <div class="panel-head">
+      <div class="dot"></div>
+      <div>互動控制</div>
+      <button class="collapse" id="btnCollapse" title="收合">—</button>
+    </div>
+
+    <div class="group">
+      <label class="row">
+        <span>光影場景</span>
+        <output id="outLight">白天</output>
+      </label>
+      <div class="presets light-presets">
+        <button data-light="day" class="active">白天</button>
+        <button data-light="dusk">黃昏</button>
+        <button data-light="night">夜晚</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <label class="row">
+        <span>砲塔旋轉 <small>Z 軸</small></span>
+        <output id="outTurret">0°</output>
+      </label>
+      <input id="turret" type="range" min="-120" max="120" step="1" value="0" />
+    </div>
+
+    <div class="group">
+      <label class="row">
+        <span>砲管俯仰 <small>X 軸</small></span>
+        <output id="outGun">0.0°</output>
+      </label>
+      <input id="gun" type="range" min="-10" max="15" step="0.5" value="0" />
+      <div class="ticks"><span>-10°</span><span>+15°</span></div>
+    </div>
+
+    <div class="group">
+      <label class="row">
+        <span>車身前進 <small>Y 軸</small></span>
+        <output id="outDrive">0.0 cm</output>
+      </label>
+      <input id="drive" type="range" min="-1" max="1" step="0.01" value="0" />
+      <div class="ticks"><span>後退</span><span>邊界 −30 cm</span><span>前進</span></div>
+    </div>
+
+    <div class="group toggles">
+      <button id="btnAuto" class="pill"><span class="led"></span>自動旋轉</button>
+      <button id="btnMove" class="pill"><span class="led"></span>自動行進</button>
+    </div>
+
+    <div class="group">
+      <div class="presets">
+        <button data-view="hero" class="active">坦克特寫</button>
+        <button data-view="side">側面</button>
+        <button data-view="diorama">全景</button>
+      </div>
+      <button id="btnReset" class="wide">重設視角與控制器</button>
+    </div>
+
+    <div class="meta">
+      <div><span>場景</span> 松林泥道 · 苔石 · 蕨類</div>
+      <div><span>材質</span> Cycles 烘焙 · PBR</div>
+      <div><span>音效</span> 合成柴油引擎 · 伺服機構</div>
+      <div><span>操作</span> 拖曳旋轉 · 滾輪縮放 · 右鍵平移</div>
+    </div>
+  </aside>
+
+  <div class="hint">拖曳以旋轉場景 · 滾輪縮放 · 右鍵平移</div>
+
+  <div id="loader">
+    <div class="loader-inner">
+      <div class="loader-title">M1A2T ABRAMS</div>
+      <div class="loader-sub">載入微縮場景…</div>
+      <div class="bar"><i id="bar"></i></div>
+      <div class="loader-pct" id="pct">0%</div>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/addons/": "./vendor/addons/"
+    }
+  }
+  </script>
+  <script type="module" src="./main.js?v=11"></script>
+</body>
+</html>
