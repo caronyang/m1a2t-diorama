@@ -42,11 +42,25 @@ header.top{position:fixed;left:26px;top:22px;right:26px;display:flex;justify-con
   font-size:12px;letter-spacing:.08em}
 .row small{color:var(--muted);font-size:9px;letter-spacing:.16em;margin-left:4px}
 output{color:var(--accent);font-variant-numeric:tabular-nums;font-size:12px}
-input[type=range]{-webkit-appearance:none;width:100%;height:2px;background:rgba(220,230,210,.2);
-  outline:none;margin:8px 0 6px;cursor:pointer}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:11px;height:11px;border-radius:50%;
-  background:var(--accent);border:0;box-shadow:0 0 0 4px rgba(201,214,163,.14)}
-input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--accent);border:0}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;
+  background:transparent;outline:none;margin:2px 0 2px;cursor:grab;touch-action:none}
+input[type=range]:active{cursor:grabbing}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;
+  background:linear-gradient(90deg,rgba(201,214,163,.22),rgba(201,214,163,.14));
+  border:1px solid rgba(201,214,163,.12)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;
+  margin-top:-8px;border-radius:50%;background:var(--accent);
+  border:2px solid rgba(8,12,9,.55);box-shadow:0 0 0 5px rgba(201,214,163,.13),
+  0 3px 10px rgba(0,0,0,.45);transition:box-shadow .15s,transform .15s}
+input[type=range]:hover::-webkit-slider-thumb,
+input[type=range]:focus::-webkit-slider-thumb{box-shadow:0 0 0 7px rgba(201,214,163,.20),
+  0 3px 12px rgba(0,0,0,.5)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.08)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;
+  background:rgba(201,214,163,.18);border:1px solid rgba(201,214,163,.12)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;
+  background:var(--accent);border:2px solid rgba(8,12,9,.55);
+  box-shadow:0 0 0 5px rgba(201,214,163,.13),0 3px 10px rgba(0,0,0,.45)}
 .ticks{display:flex;justify-content:space-between;font-size:9px;letter-spacing:.14em;color:var(--muted);opacity:.7}
 .toggles{display:flex;gap:8px}
 .pill{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;background:transparent;
